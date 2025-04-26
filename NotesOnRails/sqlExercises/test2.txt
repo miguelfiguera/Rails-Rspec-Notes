@@ -1,0 +1,51 @@
+1) validates :rating, presence: true, numericality: { only_integer: true, less_than_or_equal_to: 5 }
+
+scope :positive,->{where('reviews.rating >=4')}
+
+private
+
+def review_params
+
+params.require(:review).permit(:rating, :comment, :product_id)
+end
+
+2)
+
+def create
+
+@post = Post.create(post_params)
+
+if @post.save
+return true
+redirect_to post_path(@post))
+else
+return false
+render :new
+end
+
+Colocar render new permite mantener la informacion del formulario y mostrar los errores que impidieron se hiciera el registro.
+Redirect_to te enviaria a la ruta de un registro que no existe... por eso se usa render new.
+
+3)
+
+@user_with_at_least_one=User.eager_load(:articles).where('articles.published = ?',true).distinct
+
+#other option
+
+@user_with_min_one=User.joins(:articles).where(articles: {published:true}).distinct
+
+4)
+
+rescue_from ActiveRecord::RecordNotFound, with: :handle_not_found
+
+def edit
+@product = Product.find(params[:id])
+end
+
+private
+
+def handle_not_found
+redirect_to products_path, alert:'Producto no encontrado'
+end
+
+5)

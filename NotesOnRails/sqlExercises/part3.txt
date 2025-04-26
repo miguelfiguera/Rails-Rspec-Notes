@@ -1,0 +1,26 @@
+1) Problema: Productos Populares con Bajo Stock
+Encuentra los nombres (products.name) de los productos que cumplen ambas condiciones:
+Han sido pedidos más de 10 veces en total (considerando la suma de las cantidades quantity en order_items para ese producto en todas las órdenes).
+Su nivel de stock actual (products.stock_quantity) es menor a 5.
+Objetivo: JOIN (products con order_items), agrupar por producto (GROUP BY), sumar la cantidad pedida (SUM), filtrar por la suma total (HAVING), filtrar por el stock actual (WHERE), seleccionar el nombre.
+
+SELECT products.name FROM products
+JOIN order_items ON products.id=order_items.product_id
+WHERE products.stock_quantity < 5
+GROUP BY products.id
+HAVING  SUM(order_items.quantity)>10
+
+
+Product.joins(:order_items).where('products.stock_quantity < ?',5).group('products.id').having("SUM(order_items.quantity>10).pluck(:name)
+
+2) Problema: Órdenes con Totales Discrepantes
+Encuentra los IDs (orders.id) de las órdenes donde el valor registrado en orders.total_amount no coincide con la suma calculada de (order_items.quantity * order_items.price_at_order) para todos los items de esa orden.
+Nota: Esto podría usarse para encontrar posibles errores en el cálculo de totales o descuentos aplicados incorrectamente a nivel de orden. Ten en cuenta que la columna price_at_order en order_items ya debería reflejar el precio unitario al momento de la compra (potencialmente con descuentos aplicados a nivel de ítem).
+Objetivo: JOIN (orders con order_items), agrupar por orden (GROUP BY), calcular la suma de quantity * price_at_order, comparar esta suma con orders.total_amount (HAVING), seleccionar el ID de la orden.
+
+SELECT orders.id FROM orders
+JOIN order_items ON orders.id=order_items.order_id
+GROUP BY orders.id
+HAVING orders.total_amount != SUM(order_items.quantity * order_items.price_at_order)
+
+Order.joins(:order_items).group('orders.id').having('orders.total_amount != SUM(order_items.quantity * order_items.price_at_order)').pluck('orders.id')

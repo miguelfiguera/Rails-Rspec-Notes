@@ -1,0 +1,153 @@
+vendors (id, name, created_at)
+products (id, vendor_id, category_id, name, price, stock_quantity)
+categories (id, name)
+discounts (id, vendor_id, product_id, description, percentage, active, start_date, end_date) - product_id puede ser NULL si aplica a todo el vendor.
+customers (id, name, email, signup_date)
+orders (id, customer_id, order_date, total_amount)
+order_items (id, order_id, product_id, quantity, price_at_order)
+
+
+1) (Medio/Difícil) Categorías con Precio Promedio Alto:
+Encuentra los nombres (categories.name) de todas las categorías cuyo precio promedio (AVG(products.price)) de productos asociados sea mayor a $50.00.
+Objetivo: JOIN, GROUP BY (categoría), AVG, HAVING.
+
+ SELECT name FROM categories
+JOIN products ON categories.id=products.category_id
+GROUP BY (categories.id)
+HAVING AVG(products.price) > 50
+
+
+Category.joins(:products)
+.group('categories.id')
+.having('AVG(products.price) > ?',50)
+.pluck(:name)
+
+
+2) (Medio/Difícil) Clientes con Compras en Múltiples Categorías:
+Encuentra los nombres (customers.name) de los clientes que han realizado órdenes (orders -> order_items -> products) de productos pertenecientes a más de 3 categorías distintas (categories) a lo largo de todo su historial. 
+
+SELECT customers.name FROM customers
+JOIN orders ON customers.id=orders.customer_id
+JOIN order_items ON orders.id=order_items.order_id
+JOIN products ON products.id=order_items.product_id
+JOIN categories ON categories.id=products.category_id
+GROUP BY customers.name
+HAVING COUNT(DISTINCT categories.id) > 3
+
+Customer.joins(orders:{order_items:{product: :category}}).group('customers.name').having('COUNT(DISTINCT categories.id) > 3').pluck(:name)
+
+
+3)Obtén los nombres (products.name) de los productos que tienen actualmente un descuento activo. Un producto está en descuento si:
+Existe un registro en discounts directamente asociado al producto (discounts.product_id = products.id) que está activo (active = true) y la fecha actual está dentro de start_date y end_date.
+O BIEN, existe un registro en discounts asociado al vendedor del producto (discounts.vendor_id = products.vendor_id Y discounts.product_id IS NULL) que está activo y la fecha actual está dentro de start_date y end_date.
+Asegúrate de que cada nombre de producto aparezca solo una vez en los resultados.
+Objetivo: JOINs (posiblemente LEFT JOIN y coalescing o un UNION, o un JOIN con OR complejo), WHERE con condiciones de fecha/boolean/nulidad, DISTINCT o GROUP BY.
+
+A:
+SELECT products.name FROM products
+JOIN discounts ON products.id=discounts.product_id
+WHERE discounts.active = true AND
+ CURDATE() BETWEEN discounts.start_date AND discounts.end_date
+GROUP BY products.name
+
+UNION
+
+SELECT products.name FROM products
+JOIN discounts ON discounts.vendor_id = products.vendor_id
+WHERE CURDATE() BETWEEN discounts.start_date AND discounts.end_date AND
+ discounts.active = true AND
+ discounts.product_id IS NULL
+GROUP BY products.name
+
+B:
+SELECT DISTINCT products.name
+FROM products JOIN discounts ON (products.id = discounts.product_id OR (discounts.vendor_id = products.vendor_id AND discounts.product_id IS NULL))
+WHERE discounts.active = true
+AND CURDATE() BETWEEN discounts.start_date AND discounts.end_date
+
+AR A:
+Product.joins("INNER JOIN discounts ON
+               (products.id = discounts.product_id) OR
+               (products.vendor_id = discounts.vendor_id AND discounts.product_id IS NULL)")
+       .where("discounts.active = :active AND :today BETWEEN discounts.start_date AND discounts.end_date",
+              active: true, today: Date.today) # Using named placeholders
+       .distinct
+       .pluck(:name)
+
+
+
+
+
+
+4)(Muy Difícil) Clientes que Compraron Todos los Productos de una Categoría Específica:
+Encuentra los nombres (customers.name) de los clientes que han comprado (aparecen en order_items) todos y cada uno de los productos (products) que pertenecen a la categoría con name = 'Electrónicos'.
+Pista: A menudo, esto implica contar cuántos productos distintos de esa categoría ha comprado un cliente y comparar ese conteo con el número total de productos en esa categoría.
+Objetivo: JOINs múltiples, subconsultas o CTEs, GROUP BY (cliente), COUNT(DISTINCT product_id), HAVING, comparación de conteos. (Esto se conoce como consulta de "división relacional").
+
+WITH CategoryProducts AS (
+    SELECT id
+    FROM products
+    JOIN categories ON products.category_id = categories.id
+    WHERE categories.name = 'Electrónicos'
+),
+CustomerProductCounts AS (
+    SELECT customers.name AS customer_name, COUNT(DISTINCT order_items.product_id) AS product_count
+    FROM customers
+    JOIN orders ON customers.id = orders.customer_id
+    JOIN order_items ON orders.id = order_items.order_id
+    WHERE order_items.product_id IN (SELECT id FROM CategoryProducts)
+    GROUP BY customers.name
+),
+TotalCategoryProductCount AS (
+    SELECT COUNT(*) AS total_products
+    FROM CategoryProducts
+)
+SELECT customer_name
+FROM CustomerProductCounts, TotalCategoryProductCount
+WHERE CustomerProductCounts.product_count = TotalCategoryProductCount.total_products;
+
+
+# Step 1: Get IDs of products in the target category
+category_product_ids = Product.joins(:category)
+                              .where(categories: { name: 'Electrónicos' })
+                              .pluck(:id)
+
+# Step 2: Get the total count (can be done in Ruby)
+total_category_products = category_product_ids.count # Use .count on the array
+
+# Prevent division by zero or unnecessary query if no products in category
+if total_category_products > 0
+  # Step 3: Find customer IDs who bought all these products
+  customer_ids = Customer.joins(orders: :order_items)
+                         .where(order_items: { product_id: category_product_ids }) # Bought products FROM the list
+                         .group('customers.id')
+                         .having('COUNT(DISTINCT order_items.product_id) = ?', total_category_products) # Count matches total
+                         .pluck('customers.id') # Get the IDs of matching customers
+
+  # Step 4: Fetch the names for those customer IDs
+  Customer.where(id: customer_ids).pluck(:name)
+else
+  [] # Return empty array if no products in category
+end
+
+
+5)
+SELECT customers.name, COUNT(DISTINCT products.id) AS the_products FROM customers
+JOIN orders ON customers.id=orders.customer_id
+JOIN order_items on orders.id=order_items.order_id
+JOIN products ON order_items.product_id = products.id
+WHERE orders.order_date >= CURDATE() - INTERVAL '365 day'
+GROUP BY customers.name
+ORDER BY the_products DESC
+limit 3;
+
+Customer.joins(orders: { order_items: :product })
+        .where('orders.order_date >= ?', Time.zone.today - 365.days)
+        .group('customers.name')
+        .select('customers.name, COUNT(DISTINCT products.id) AS the_products')
+        .order('the_products DESC')
+        .limit(3)
+        .pluck(:name)
+
+
+

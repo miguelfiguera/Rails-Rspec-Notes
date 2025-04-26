@@ -1,0 +1,66 @@
+1) 
+
+Obtén una lista que muestre el nombre de cada empleado que es gerente de al menos otro empleado, junto con el nombre del empleado que le reporta directamente. Es decir, cada fila debe ser (Nombre Gerente, Nombre Empleado Reporta).
+
+
+SELECT m.name,e.name FROM employees AS e
+JOIN employees AS m ON e.manager_id = m.id
+ORDER BY m.name, e.name
+
+Employee.joins(:manager).select('managers.name,employees.name').order('managers.name,employees.name')
+
+2) Obtén una lista que muestre el nombre de cada gerente y cuántos empleados le reportan directamente.
+
+SELECT m.name, COUNT(e.id) AS subdordinates_count FROM employees AS e
+JOIN employees AS m ON employees.manager_id = m.id
+GROUP BY m.id
+HAVING (COUNT(e.id) > 0)
+ORDER BY m.name
+
+Employee.joins(:manager).select('managers.name, COUNT(employees.id)'.group('managers.id').having('COUNT(employees.id) >= ?',1)).order('managers.name')
+
+3)Obtén una lista con los nombres de todos los empleados que no tienen un gerente asignado (su manager_id es NULL).
+
+SELECT employees.name FROM employees
+WHERE employees.manager_id IS NULL
+ORDER BY employees.name
+
+Employee.where('manager_id is ?', nil).order(:name)
+
+4) Obtén una lista que muestre el nombre del empleado, el nombre de su gerente directo, y el nombre del gerente de su gerente (el "jefe del jefe").
+
+
+5) Obtén una lista con los nombres de todos los empleados que no aparecen como manager_id en ningún otro registro. Es decir, empleados que no tienen a nadie reportándoles directamente.
+
+
+A:SELECT e.name 
+FROM employees AS e
+LEFT JOIN (
+    SELECT DISTINCT manager_id 
+    FROM employees 
+    WHERE manager_id IS NOT NULL
+) AS m ON e.id = m.manager_id
+WHERE m.manager_id IS NULL;
+
+
+B: SELECT employees.name FROM employees
+WHERE employees.id NOT IN (SELECT employees.manager_id FROM employees WHERE employees.manager_id IS NOT NULL)
+
+Employees.where('employees.id NOT IN (SELECT employees.manager_id FROM employees WHERE employees.manager_id IS NOT NULL)')
+
+PATRON ANTI JOIN PARA EL NUMERO CINCO
+
+SELECT e.name
+FROM employees AS e
+LEFT JOIN employees AS subordinates ON e.id = subordinates.manager_id 
+WHERE subordinates.id IS NULL 
+GROUP BY e.id 
+ORDER BY e.name ASC;
+
+# Asume has_many :subordinates, class_name: 'Employee', foreign_key: 'manager_id'
+Employee.left_outer_joins(:subordinates) # LEFT JOIN para buscar subordinados
+        .where(subordinates: { id: nil }) # Donde no se encontró subordinado (id es NULL)
+        .distinct # Asegurar empleados únicos
+        .order(:name)
+        .pluck(:name) # Obtener solo los nombres
+

@@ -1,0 +1,128 @@
+Preguntas conceptuales
+
+ActiveRecord
+N+1 Queries: Explique qué es un problema de "N+1 queries" en el contexto de ActiveRecord. Proporcione un ejemplo simple de código que lo cause y muestre cómo lo solucionaría usando includes o joins.
+
+Es la peticion, uno a uno, de informacion a la base de datos en vez de hacerse en un query eficiente.
+
+Ejemplo:
+
+dado un modelo joke que esta asociado en belongs_to a un modelo author
+
+@lol=Joke.all
+
+@lol.each {|joke| puts joke.author}
+
+La forma mas sencilla seria
+
+@lol=Joke.includes(:author)
+
+
+Validaciones y Callbacks: Describa la diferencia entre una validación (validates) y un callback (before_save, after_commit, etc.) en un modelo de ActiveRecord. ¿En qué escenario preferiría usar uno sobre el otro y por qué? Dé un ejemplo de un callback útil y uno de un riesgo potencial al usar callbacks.
+
+Validaciones: son elementos establecidos para verificar la integridad de la informacion antes de que sea enviada a la base de datos. Se usan para una aplicacion mas segura y para mantener la coherencia en la base de datos.
+
+Callback: es una funcion/metodo usado para establecer una logica alrededor del ciclo de creacion de un registro en la base de datos.
+
+Los callbacks se pueden usar para dar formato a la informacion, chequear su validez, revisar que no exista un elemento similar, etc. El riesgo potencial en usar callbacks es que pueden romper la aplicacion si se produce un error.
+
+
+Scopes: ¿Qué es un scope de ActiveRecord y para qué se utiliza principalmente? Escriba un ejemplo de un scope en un modelo Post que devuelva solo los posts publicados (published: true) y ordenados por fecha de creación descendente.
+
+Los scopes son basicamente queries abreviadas como un lambda en rails, su funcion es regresar informacion especifica desde la base de datos.
+
+scope :is_published, ~> {where(published: true).order(created_at: :desc)}
+
+
+controladores y rutas:
+
+Strong Parameters: ¿Cuál es el propósito de los strong parameters en un controlador de Rails? ¿Por qué son una característica de seguridad importante? Muestre un ejemplo de cómo se implementarían en un método create para un modelo Article que tiene title y body.
+
+La seguridad, solo permite los parametros definidos previamente en un metodo privado (por convencion).
+
+  def create
+    @article = Article.new(article_params)
+
+    respond_to do |format|
+      if @article.save
+        format.html { redirect_to @article, notice: "article was successfully created." }
+        format.json { render :show, status: :created, location: @client }
+      else
+        format.html { render :new, status: :unprocessable_entity }
+        format.json { render json: @article.errors, status: :unprocessable_entity }
+      end
+    end
+  end
+  
+  private
+  
+  def article_params
+  params.require(:article).permit[:title,:body]
+  end
+
+
+render vs redirect_to: Explique la diferencia fundamental entre usar render y redirect_to dentro de una acción de controlador. ¿Cuándo usaría cada uno típicamente en el ciclo de una petición web (por ejemplo, después de enviar un formulario)?
+
+render como su nombre lo indica, renderiza algun elemento, ya sea html o json.
+
+redirect_to redirige al usuario en la aplicacion web a algun otro punto despues de que corra algun metodo o se haga una llamada a un controlador.
+
+
+RESTful Routing: ¿Qué significa diseñar rutas "RESTful"? ¿Qué comando de Rails (rails routes) le ayudaría a inspeccionar las rutas generadas por resources :products en su archivo config/routes.rb?
+
+Las rutas de representational state transfer son rutas que aparte de usar un protocolo http pueden enviar la informacion en diferentes formatos, contienen los siete metodos mas usados index, show, new, create, update, edit, destroy para manejar get post put patch delete.
+
+rails routes -c ProductsController o rails routes | grep products
+
+Categoría: Conceptos Generales y Buenas Prácticas
+
+Service Objects: ¿Qué es un "Service Object" (Objeto de Servicio) en Rails y cuál es su propósito principal? ¿En qué tipo de situaciones consideraría extraer lógica de un controlador o modelo a un Service Object?
+
+Un service object es un objeto que procesa un servicio, es decir, logica de negocio que requiere varios modelos para funcionar correctamente. Se debe extraer la logica de un controlador cuando el controlador empieza a incorporar logica del negocio y de un modelo cuando requiere a varios modelos para funcionar correctamente.
+
+Background Jobs: ¿Cuándo debería considerar usar un sistema de trabajos en segundo plano (background jobs) como Sidekiq o Resque en una aplicación Rails? Proporcione dos ejemplos de tareas que serían adecuadas para ejecutarse en segundo plano.
+
+Un sistema de trabajos en segundo plano es necesario cuando algunas tareas son muy costosas en tiempo, computo y respuesta para ser manejadas directamente en el protocolo http o cliente servidor. Ejemplos claros de esto es el envio de emails de forma masiva, el refresh de una materialized view, la generacion de reportes semanales, etc.
+
+Concerns: ¿Qué son los Concerns en Rails (módulos dentro de app/models/concerns o app/controllers/concerns)? ¿Qué problema intentan resolver?
+
+Los concerns son modulos que permiten compartir logica de forma reutilizable entre modelos y/o controladores. Pueden usarse tambien para extender la logica presente en los controladores o los modelos.
+
+Ejercicios:
+
+1) User.joins(:orders).where('orders.total_amount > ? AND orders.status= ?',100,'completed').having('COUNT(orders.id)>0').select('User').disctint
+2)
+
+validate :title, presence: true
+
+scope :published,~> {where('articles.published_at < ?',Time.zone.today)
+
+def publish
+@article=Article.find(params[:id])
+
+if @article
+@article.update(published_at: Time.current)
+redirect_to article_path(@article)
+else
+ render json: @article.errors, status: :unprocessable_entity 
+ end
+ end
+
+3)
+
+def self.is_available?
+	return true if self.is_active == true && self.inventory_count > 0
+	
+	return false
+end
+
+#controlador
+
+def index
+@products = Product.all.filter{|product| product.is_available? == true}
+
+end
+
+
+
+
